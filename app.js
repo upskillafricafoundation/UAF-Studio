@@ -837,7 +837,7 @@
      7. DRIVE SYNC via Apps Script web app
   --------------------------------------------------------- */
 
-  const URL_KEY = "palava_voice_apps_script_url";
+  const URL_KEY = "https://script.google.com/macros/s/AKfycbwZ0hD0W-Awx4ZcKmpGl5bhMQ_JcfHRwMLNGUa39sO4sUh07nsu_ErmiDiBPp6o7Y1OVQ/exec";
 
   function loadAppsScriptUrl() {
     const saved = localStorage.getItem(URL_KEY) || "";

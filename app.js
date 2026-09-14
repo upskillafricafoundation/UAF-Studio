@@ -837,7 +837,7 @@
      7. DRIVE SYNC via Apps Script web app
   --------------------------------------------------------- */
 
-  const URL_KEY = "https://script.google.com/macros/s/AKfycbwZ0hD0W-Awx4ZcKmpGl5bhMQ_JcfHRwMLNGUa39sO4sUh07nsu_ErmiDiBPp6o7Y1OVQ/exec";
+  const URL_KEY = "palava_voice_apps_script_url";
 
   function loadAppsScriptUrl() {
     const saved = localStorage.getItem(URL_KEY) || "";
@@ -1140,14 +1140,50 @@
   let currentSessionId = null;
   let sessionPeersRef = null;
 
-  function saveFirebaseConfig(configText) {
-    try {
-      const parsed = JSON.parse(configText);
-      localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(parsed));
-      return parsed;
-    } catch {
-      return null;
+  // Firebase's console gives you a JavaScript snippet (unquoted keys,
+  // an import statement or two above it, a trailing semicolon) — not
+  // strict JSON. Rather than ask people to hand-edit that, we extract
+  // and repair it automatically so the whole copy-pasted block just works.
+  function extractConfigObjectText(raw) {
+    const anchor = raw.indexOf("firebaseConfig");
+    const searchFrom = anchor >= 0 ? anchor : 0;
+    const start = raw.indexOf("{", searchFrom);
+    if (start === -1) return raw.trim();
+
+    let depth = 0;
+    for (let i = start; i < raw.length; i++) {
+      if (raw[i] === "{") depth++;
+      else if (raw[i] === "}") {
+        depth--;
+        if (depth === 0) return raw.slice(start, i + 1);
+      }
     }
+    return raw.slice(start).trim();
+  }
+
+  function repairToJson(objectText) {
+    return objectText
+      // quote unquoted object keys: { apiKey: -> { "apiKey":
+      .replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":')
+      // drop trailing commas before a closing brace/bracket
+      .replace(/,(\s*[}\]])/g, "$1");
+  }
+
+  function saveFirebaseConfig(configText) {
+    const candidates = [
+      configText,                                    // already valid JSON
+      repairToJson(extractConfigObjectText(configText)), // full pasted snippet
+    ];
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (parsed && typeof parsed === "object" && parsed.databaseURL) {
+          localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(parsed));
+          return parsed;
+        }
+      } catch { /* try the next candidate */ }
+    }
+    return null;
   }
 
   async function createRoom() {
@@ -1645,7 +1681,7 @@
       const parsed = saveFirebaseConfig($("firebase-config").value.trim());
       $("calling-setup-status").textContent = parsed
         ? "Calling service connected on this device."
-        : "That doesn't look like a valid Firebase config — paste the full snippet from the Firebase console.";
+        : "Couldn't find a databaseURL in that — make sure you created the Realtime Database before copying the config, and paste the full snippet (including the { } braces).";
     });
 
     renderRoster();
